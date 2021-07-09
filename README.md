@@ -1,2 +1,2 @@
-# library_pycubed.py-
-Hardware initialization and helper library for PyCubed boards
+# pycubed.py Library
+CircuitPython hardware initialization and helper library for PyCubed boards
