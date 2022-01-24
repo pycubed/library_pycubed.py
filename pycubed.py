@@ -1,7 +1,7 @@
 """
 CircuitPython driver for PyCubed satellite board.
-PyCubed Hardware Version: mainboard-v05
-CircuitPython Version: 7.0.0 alpha
+PyCubed Hardware Version: mainboard-v04
+CircuitPython Version: 7.0.0
 Library Repo: https://github.com/pycubed/library_pycubed.py
 
 * Author(s): Max Holliday
@@ -76,8 +76,6 @@ class Satellite:
         # Define burn wires:
         self._relayA = digitalio.DigitalInOut(board.RELAY_A)
         self._relayA.switch_to_output(drive_mode=digitalio.DriveMode.OPEN_DRAIN)
-        self._resetReg = digitalio.DigitalInOut(board.VBUS_RST)
-        self._resetReg.switch_to_output(drive_mode=digitalio.DriveMode.OPEN_DRAIN)
 
         # Define battery voltage
         self._vbatt = AnalogIn(board.BATTERY)
@@ -88,7 +86,7 @@ class Satellite:
         self._chrg.switch_to_input()
 
         # Define SPI,I2C,UART
-        self.i2c1  = busio.I2C(board.SCL,board.SDA)
+        self.i2c  = busio.I2C(board.SCL,board.SDA)
         self.spi   = board.SPI()
         self.uart  = busio.UART(board.TX,board.RX)
 
@@ -102,10 +100,7 @@ class Satellite:
         # Define radio
         _rf_cs1 = digitalio.DigitalInOut(board.RF1_CS)
         _rf_rst1 = digitalio.DigitalInOut(board.RF1_RST)
-        self.enable_rf = digitalio.DigitalInOut(board.EN_RF)
         self.radio1_DIO0=digitalio.DigitalInOut(board.RF1_IO0)
-        # self.enable_rf.switch_to_output(value=False) # if U21
-        self.enable_rf.switch_to_output(value=True) # if U7
         _rf_cs1.switch_to_output(value=True)
         _rf_rst1.switch_to_output(value=True)
         self.radio1_DIO0.switch_to_input()
@@ -113,7 +108,7 @@ class Satellite:
         # Initialize SD card (always init SD before anything else on spi bus)
         try:
             # Baud rate depends on the card, 4MHz should be safe
-            _sd = sdcardio.SDCard(self.spi, board.SD_CS, baudrate=4000000)
+            _sd = sdcardio.SDCard(self.spi, board.xSDCS, baudrate=4000000)
             _vfs = VfsFat(_sd)
             mount(_vfs, "/sd")
             self.fs=_vfs
@@ -133,7 +128,7 @@ class Satellite:
 
         # Initialize USB charger
         try:
-            self.usb = bq25883.BQ25883(self.i2c1)
+            self.usb = bq25883.BQ25883(self.i2c)
             self.usb.charging = False
             self.usb.wdt = False
             self.usb.led=False
@@ -145,7 +140,7 @@ class Satellite:
 
         # Initialize Power Monitor
         try:
-            self.pwr = adm1176.ADM1176(self.i2c1)
+            self.pwr = adm1176.ADM1176(self.i2c)
             self.pwr.sense_resistor = 1
             self.hardware['PWR'] = True
         except Exception as e:
@@ -153,7 +148,7 @@ class Satellite:
 
         # Initialize IMU
         try:
-            self.IMU = bmx160.BMX160_I2C(self.i2c1)
+            self.IMU = bmx160.BMX160_I2C(self.i2c)
             self.hardware['IMU'] = True
         except Exception as e:
             if self.debug: print('[ERROR][IMU]',e)
@@ -188,11 +183,11 @@ class Satellite:
         if   dev=='gps':
             self.gps.__init__(self.uart,debug=False)
         elif dev=='pwr':
-            self.pwr.__init__(self.i2c1)
+            self.pwr.__init__(self.i2c)
         elif dev=='usb':
-            self.usb.__init__(self.i2c1)
+            self.usb.__init__(self.i2c)
         elif dev=='imu':
-            self.IMU.__init__(self.i2c1)
+            self.IMU.__init__(self.i2c)
         else:
             print('Invalid Device? ->',dev)
 
@@ -287,20 +282,6 @@ class Satellite:
     @property
     def solar_charging(self):
         return not self._chrg.value
-
-    @property
-    def reset_vbus(self):
-        # unmount SD card to avoid errors
-        if self.hardware['SDcard']:
-            try:
-                umount('/sd')
-                self.spi.deinit()
-                time.sleep(3)
-            except Exception as e:
-                print('vbus reset error?', e)
-                pass
-        self._resetReg.drive_mode=digitalio.DriveMode.PUSH_PULL
-        self._resetReg.value=1
 
     def log(self, msg):
         if self.hardware['SDcard']:
