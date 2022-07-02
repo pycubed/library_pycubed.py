@@ -437,8 +437,10 @@ class Satellite:
         burnwire.duty_cycle=dtycycl
         time.sleep(duration)
         # Clean up
-        self._relayA.value = 0
         burnwire.duty_cycle=0
+        # Pause to ensure FET is off
+        time.sleep(0.5)
+        self._relayA.value = 0        
         self.RGB=(0,0,0)
         burnwire.deinit()
         self._relayA.drive_mode=digitalio.DriveMode.OPEN_DRAIN
